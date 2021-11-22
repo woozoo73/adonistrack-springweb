@@ -3,7 +3,10 @@ package com.woozooha.adonistrack.api;
 import com.woozooha.adonistrack.aspect.ProfileAspect;
 import com.woozooha.adonistrack.domain.*;
 import com.woozooha.adonistrack.util.PatternMatchUtils;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.server.ServletServerHttpRequest;
+import org.springframework.http.server.ServletServerHttpResponse;
 import org.springframework.util.Assert;
 import org.springframework.web.filter.AbstractRequestLoggingFilter;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -17,6 +20,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -93,6 +97,10 @@ public class AdonisTrackFilter extends OncePerRequestFilter {
     protected Invocation beforeRequest(HttpServletRequest request, HttpServletResponse response) {
         try {
             RequestInfo requestInfo = new RequestInfo(request);
+
+            HttpHeaders httpHeaders = new ServletServerHttpRequest(request).getHeaders();
+            requestInfo.setHeaders(headers(httpHeaders));
+
             if (isIncludePayload()) {
                 requestInfo.setPayload(this.getMessagePayload((HttpServletRequest) request));
             }
@@ -112,23 +120,35 @@ public class AdonisTrackFilter extends OncePerRequestFilter {
                 responseInfo.setReasonPhrase(httpStatus.getReasonPhrase());
             }
 
+            HttpHeaders httpHeaders = new ServletServerHttpResponse(response).getHeaders();
+            responseInfo.setHeaders(headers(httpHeaders));
+
             if (isIncludePayload()) {
                 responseInfo.setPayload(this.getMessagePayload((HttpServletResponse) response));
             }
 
-            // Fill request payload.
-
             Event<ResponseInfo> event = new ResponseInfoEvent(responseInfo);
-            if (isIncludePayload()) {
-                List<Event<?>> eventList = invocation.getEventList();
-                for (Event ev : eventList) {
-                    if (ev.getValue() != null && ev.getValue() instanceof RequestInfo) {
-                        RequestInfo requestInfo = (RequestInfo) ev.getValue();
-                        if (requestInfo != null && requestInfo.getPayload() == null) {
+
+            // Fill request attributes.
+
+            List<Event<?>> eventList = invocation.getEventList();
+            for (Event ev : eventList) {
+                if (ev.getValue() != null && ev.getValue() instanceof RequestInfo) {
+                    RequestInfo requestInfo = (RequestInfo) ev.getValue();
+
+                    if (requestInfo == null) {
+                        break;
+                    }
+
+                    // Fill payload.
+
+                    if (isIncludePayload()) {
+                        if (requestInfo.getPayload() == null) {
                             requestInfo.setPayload(this.getMessagePayload((HttpServletRequest) request));
-                            break;
                         }
                     }
+
+                    break;
                 }
             }
 
@@ -177,6 +197,16 @@ public class AdonisTrackFilter extends OncePerRequestFilter {
         ContentCachingResponseWrapper responseWrapper =
                 WebUtils.getNativeResponse(response, ContentCachingResponseWrapper.class);
         responseWrapper.copyBodyToResponse();
+    }
+
+    protected List<Header> headers(HttpHeaders httpHeaders) {
+        List<Header> headers = new ArrayList<>();
+        for (String name : httpHeaders.keySet()) {
+            List<String> values = httpHeaders.get(name);
+            headers.add(new Header(name, values));
+        }
+
+        return headers;
     }
 
 }
