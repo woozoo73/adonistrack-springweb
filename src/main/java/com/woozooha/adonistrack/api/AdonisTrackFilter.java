@@ -104,7 +104,7 @@ public class AdonisTrackFilter extends OncePerRequestFilter {
             if (isIncludePayload()) {
                 requestInfo.setPayload(this.getMessagePayload((HttpServletRequest) request));
             }
-            Event<RequestInfo> event = new RequestInfoEvent(requestInfo);
+            Event<RequestInfo> event = new RequestEvent(requestInfo);
 
             return ProfileAspect.before(event);
         } catch (Exception e) {
@@ -127,14 +127,14 @@ public class AdonisTrackFilter extends OncePerRequestFilter {
                 responseInfo.setPayload(this.getMessagePayload((HttpServletResponse) response));
             }
 
-            Event<ResponseInfo> event = new ResponseInfoEvent(responseInfo);
+            Event<ResponseInfo> event = new ResponseEvent(responseInfo);
 
             // Fill request attributes.
 
             List<Event<?>> eventList = invocation.getEventList();
             for (Event ev : eventList) {
-                if (ev.getValue() != null && ev.getValue() instanceof RequestInfo) {
-                    RequestInfo requestInfo = (RequestInfo) ev.getValue();
+                if (ev instanceof RequestEvent) {
+                    RequestInfo requestInfo = ((RequestEvent) ev).getValue();
 
                     if (requestInfo == null) {
                         break;
