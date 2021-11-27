@@ -75,14 +75,14 @@ public class AdonisTrackFilter extends OncePerRequestFilter {
         Invocation invocation = null;
         boolean shouldLog = shouldLog(requestToUse, responseToUse);
         if (shouldLog && isFirstRequest) {
-            invocation = beforeRequest(requestToUse, responseToUse);
+            invocation = before(requestToUse, responseToUse);
         }
 
         try {
             filterChain.doFilter(requestToUse, responseToUse);
         } finally {
             if (invocation != null) {
-                afterRequest(requestToUse, responseToUse, invocation);
+                after(requestToUse, responseToUse, invocation);
             }
             if (responseToUse instanceof ContentCachingResponseWrapper) {
                 flush(responseToUse);
@@ -94,7 +94,7 @@ public class AdonisTrackFilter extends OncePerRequestFilter {
         return !PatternMatchUtils.simpleMatch(ignoreUriPatterns, request.getRequestURI());
     }
 
-    protected Invocation beforeRequest(HttpServletRequest request, HttpServletResponse response) {
+    protected Invocation before(HttpServletRequest request, HttpServletResponse response) {
         try {
             RequestInfo requestInfo = new RequestInfo(request);
 
@@ -112,7 +112,7 @@ public class AdonisTrackFilter extends OncePerRequestFilter {
         }
     }
 
-    protected void afterRequest(HttpServletRequest request, HttpServletResponse response, Invocation invocation) {
+    protected void after(HttpServletRequest request, HttpServletResponse response, Invocation invocation) {
         try {
             ResponseInfo responseInfo = new ResponseInfo(response);
             HttpStatus httpStatus = HttpStatus.resolve(response.getStatus());
@@ -207,6 +207,47 @@ public class AdonisTrackFilter extends OncePerRequestFilter {
         }
 
         return headers;
+    }
+
+    public static ResponseInfo getResponseInfo() {
+        Invocation invocation = Context.getEndpointInvocation();
+        System.err.println("invocation=" + invocation);
+        if (invocation == null) {
+            return null;
+        }
+
+        System.err.println("invocation.id=" + invocation.getId());
+        System.err.println("invocation.type=" + invocation.getType());
+
+        List<Event<?>> eventList = invocation.getEventList();
+        System.err.println("eventList=" + eventList);
+        if (eventList == null || eventList.isEmpty()) {
+            return null;
+        }
+
+        ResponseEvent responseEvent = eventList.stream()
+                .filter(ResponseEvent.class::isInstance)
+                .map(ResponseEvent.class::cast)
+                .findFirst()
+                .orElse(null);
+
+        System.err.println("responseEvent=" + responseEvent);
+        if (responseEvent == null) {
+            return null;
+        }
+
+        return responseEvent.getValue();
+    }
+
+    public static boolean modifyResponseStatus(int status) {
+        ResponseInfo responseInfo = getResponseInfo();
+        if (responseInfo == null) {
+            return false;
+        }
+
+        responseInfo.setStatus(status);
+
+        return true;
     }
 
 }
