@@ -211,16 +211,11 @@ public class AdonisTrackFilter extends OncePerRequestFilter {
 
     public static ResponseInfo getResponseInfo() {
         Invocation invocation = Context.getEndpointInvocation();
-        System.err.println("invocation=" + invocation);
         if (invocation == null) {
             return null;
         }
 
-        System.err.println("invocation.id=" + invocation.getId());
-        System.err.println("invocation.type=" + invocation.getType());
-
         List<Event<?>> eventList = invocation.getEventList();
-        System.err.println("eventList=" + eventList);
         if (eventList == null || eventList.isEmpty()) {
             return null;
         }
@@ -231,7 +226,6 @@ public class AdonisTrackFilter extends OncePerRequestFilter {
                 .findFirst()
                 .orElse(null);
 
-        System.err.println("responseEvent=" + responseEvent);
         if (responseEvent == null) {
             return null;
         }

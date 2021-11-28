@@ -14,8 +14,11 @@ import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.net.URI;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @see AbstractRequestLoggingFilter
@@ -35,7 +38,7 @@ public class AdonisTrackHttpTraceFilter extends HttpTraceFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-        Invocation invocation = before();
+        before();
 
         super.doFilterInternal(request, response, filterChain);
     }
@@ -63,23 +66,44 @@ public class AdonisTrackHttpTraceFilter extends HttpTraceFilter {
 
         @Override
         public void add(HttpTrace trace) {
-            Long current = System.currentTimeMillis();
-
             repository.add(trace);
 
+            after(trace);
+        }
+
+        protected void after(HttpTrace trace) {
             Invocation invocation = Context.getEndpointInvocation();
+
             if (invocation == null) {
                 return;
             }
 
             HttpTrace.Request request = trace.getRequest();
             HttpTrace.Response response = trace.getResponse();
+
+            if (request == null || response == null) {
+                return;
+            }
+
             Instant timestamp = trace.getTimestamp();
+            Long start = timestamp.toEpochMilli();
+            Long duration = trace.getTimeTaken();
+
+            // Request event
 
             RequestInfo requestInfo = new RequestInfo();
             requestInfo.setMethod(request.getMethod());
-            requestInfo.setRequestURI(request.getUri().toString());
-            requestInfo.setStart(timestamp.toEpochMilli());
+            URI uri = request.getUri();
+            if (uri != null) {
+                requestInfo.setRequestURI(uri.getPath());
+                requestInfo.setQueryString(uri.getQuery());
+            }
+            requestInfo.setHeaders(headers(request.getHeaders()));
+            requestInfo.setStart(start);
+
+            invocation.add(new RequestEvent(requestInfo));
+
+            // Response event
 
             ResponseInfo responseInfo = new ResponseInfo();
             responseInfo.setStatus(response.getStatus());
@@ -87,10 +111,17 @@ public class AdonisTrackHttpTraceFilter extends HttpTraceFilter {
             if (httpStatus != null) {
                 responseInfo.setReasonPhrase(httpStatus.getReasonPhrase());
             }
-
-            invocation.add(new RequestEvent(requestInfo));
+            responseInfo.setHeaders(headers(response.getHeaders()));
+            responseInfo.setStart(start + duration);
 
             ProfileAspect.after(invocation, new ResponseEvent(responseInfo));
+        }
+
+        protected List<Header> headers(Map<String, List<String>> htraceHaders) {
+            List<Header> headers = new ArrayList<>();
+            htraceHaders.forEach((k, v) -> headers.add(new Header(k, v)));
+
+            return headers;
         }
 
     }
